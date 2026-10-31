@@ -16,8 +16,8 @@ export interface QuestionOption {
 
 export interface BaseQuestion {
   id: number;
-  part: 'A' | 'B' | 'C' | 'D';
-  partLabel: string;
+  trackTarget: 'code' | 'creative' | 'both';
+  category: string;
   title: string;
   subtitle?: string;
   image?: string;
@@ -44,8 +44,12 @@ export interface Track {
 }
 
 export interface AssessmentResult {
-  codeScore: number;       // max 8
-  creativeScore: number;   // max 8
+  codeScore: number;       // total points earned
+  codeMax: number;         // maximum possible points
+  creativeScore: number;   // total points earned
+  creativeMax: number;     // maximum possible points
+  codePercent: number;     // 0 - 100
+  creativePercent: number; // 0 - 100
   gap: number;
   recommendation: TrackId;
   introLeaning: string;

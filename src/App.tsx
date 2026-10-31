@@ -13,19 +13,55 @@ import {
   Sparkles,
   Download,
   ChevronRight,
-  Info
+  Info,
+  Shuffle
 } from 'lucide-react';
 
 import { questions, introOptions } from './data/questions';
 import { tracks } from './data/tracks';
 import { calculateAssessment } from './utils/scoring';
-import type { AssessmentResult } from './types';
+import type { AssessmentResult, BaseQuestion } from './types';
 
 type Screen = 'splash' | 'intro' | 'quiz' | 'results';
+
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Interleaves shuffled code and creative questions so they never appear in separate blocks
+function getInterleavedQuestions(): BaseQuestion[] {
+  const codePool = shuffleArray(questions.filter(q => q.trackTarget === 'code'));
+  const creativePool = shuffleArray(questions.filter(q => q.trackTarget === 'creative'));
+  const bothPool = shuffleArray(questions.filter(q => q.trackTarget === 'both'));
+
+  const result: BaseQuestion[] = [];
+  const maxPairs = Math.max(codePool.length, creativePool.length);
+
+  for (let i = 0; i < maxPairs; i++) {
+    // Alternate starting with code or creative on odd/even pairs
+    if (i % 2 === 0) {
+      if (codePool[i]) result.push(codePool[i]);
+      if (creativePool[i]) result.push(creativePool[i]);
+    } else {
+      if (creativePool[i]) result.push(creativePool[i]);
+      if (codePool[i]) result.push(codePool[i]);
+    }
+  }
+
+  // Add the final capstone fit & friction questions (Q19 & Q20)
+  result.push(...bothPool);
+  return result;
+}
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('splash');
   const [introLeaning, setIntroLeaning] = useState<string>('not_sure');
+  const [quizQuestions, setQuizQuestions] = useState<BaseQuestion[]>([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({});
   const [direction, setDirection] = useState(1);
@@ -63,8 +99,9 @@ export default function App() {
     }
   }
 
-  const currentQ = questions[currentQIndex];
-  const totalQuestions = questions.length; // 10
+  const activeQuestions = quizQuestions.length > 0 ? quizQuestions : questions;
+  const currentQ = activeQuestions[currentQIndex] || questions[0];
+  const totalQuestions = activeQuestions.length; // 20
   const progressPercent = ((currentQIndex + 1) / totalQuestions) * 100;
 
   function triggerConfetti() {
@@ -81,10 +118,15 @@ export default function App() {
 
   function handleIntroSelect(id: string) {
     setIntroLeaning(id);
+    // Prepare fresh shuffled and interleaved question order
+    const interleaved = getInterleavedQuestions();
+    setQuizQuestions(interleaved);
+    setAnswers({});
+    setCurrentQIndex(0);
+    setDirection(1);
+
     setTimeout(() => {
       setScreen('quiz');
-      setCurrentQIndex(0);
-      setDirection(1);
     }, 250);
   }
 
@@ -113,7 +155,7 @@ export default function App() {
       updatedList = currentList.filter(id => id !== optionId);
     } else {
       if (currentList.length >= (currentQ.maxSelections || 2)) {
-        updatedList = [currentList[1], optionId]; // keep last and add new
+        updatedList = [currentList[1], optionId];
       } else {
         updatedList = [...currentList, optionId];
       }
@@ -149,6 +191,7 @@ export default function App() {
     setCurrentQIndex(0);
     setDirection(1);
     setIntroLeaning('not_sure');
+    setQuizQuestions([]);
     setScreen('splash');
   }
 
@@ -163,10 +206,10 @@ export default function App() {
   function copySummary() {
     const text = `🎯 My SkillFit Assessment Result:
 • Recommendation: ${matchedTrack.name}
-• Code Score: ${result.codeScore}/8
-• Creative Score: ${result.creativeScore}/8
+• Code Score: ${result.codeScore}/${result.codeMax} (${result.codePercent}%)
+• Creative Score: ${result.creativeScore}/${result.creativeMax} (${result.creativePercent}%)
 • Gap: ${Math.abs(result.gap)} points (${result.gap >= 0 ? 'Code leading' : 'Creative leading'})
-Checked via SkillFit by meian.lab x Community Innovation Hub`;
+Completed 20-Question Shuffled Assessment via SkillFit by meian.lab x Community Innovation Hub`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
@@ -190,7 +233,7 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
               <img src="/logo.png" alt="SkillFit Logo" className="w-full h-full object-contain" />
             </div>
             <div className="absolute -bottom-2 -right-2 bg-[#FF9640] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
-              v1.0
+              v2.0
             </div>
           </div>
 
@@ -212,19 +255,19 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-full bg-blue-100 text-[#2B5FFF] font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
               <div>
-                <span className="font-bold text-slate-800">10 Focused Questions (~5 mins):</span> Mix of algorithmic reasoning, visual perception tests, and project fit.
+                <span className="font-bold text-slate-800">20 Shuffled Questions (~7 mins):</span> Dynamic alternating flow mixing algorithmic puzzles, visual perception, UI architecture, and project fit.
               </div>
             </div>
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-full bg-amber-100 text-[#FF9640] font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
               <div>
-                <span className="font-bold text-slate-800">8 Points Each:</span> Code and Creative tracks are scored independently out of 8 for objective, balanced placement.
+                <span className="font-bold text-slate-800">Shuffled & Interleaved:</span> No repetitive track blocks — every question alternates between code reasoning and visual design.
               </div>
             </div>
             <div className="flex items-start gap-2.5">
               <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-600 font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
               <div>
-                <span className="font-bold text-slate-800">No Guesswork:</span> If your scores are close, we guide you to a 1-on-1 facilitator chat to make the best decision.
+                <span className="font-bold text-slate-800">Fair & Comprehensive:</span> 10 Code questions & 10 Creative questions scored independently to discover your natural superpowers.
               </div>
             </div>
           </div>
@@ -234,7 +277,7 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
             onClick={handleStart}
             className="w-full py-4 bg-[#2B5FFF] hover:bg-blue-600 text-white font-bold rounded-2xl text-base shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
-            Start Track Assessment
+            Start 20-Question Assessment
             <ArrowRight className="w-4 h-4" />
           </motion.button>
 
@@ -271,13 +314,13 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
           {/* Header */}
           <div className="text-center space-y-1.5">
             <span className="text-xs font-black uppercase tracking-widest text-[#2B5FFF]">
-              Step 1 of 11 · Initial Leaning
+              Intro Question · Initial Preference
             </span>
             <h2 className="text-2xl font-black text-slate-900">
-              Which track are you leaning toward?
+              Which track are you currently leaning toward?
             </h2>
             <p className="text-xs text-slate-500">
-              This does not affect your score. It helps us advise you if your assessment reveals a hidden strength!
+              This does not affect your score. It helps us compare your expectations with your actual assessment strengths!
             </p>
           </div>
 
@@ -357,7 +400,7 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
               <div className="mt-4 p-3.5 bg-purple-50 border border-purple-100 rounded-2xl text-left text-xs text-purple-900 flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold">Borderline / Dual-Talent Match:</span> Your Code and Creative scores are within {Math.abs(result.gap)} point(s) of each other. Rather than guessing, SkillFit recommends chatting with a facilitator to help you pick or explore the Full-Stack Dual Track!
+                  <span className="font-bold">Dual-Talent / Hybrid Match:</span> Your Code and Creative scores are within {Math.abs(result.gap)} point(s) of each other. Rather than forcing you into a single silo, SkillFit recommends chatting with a facilitator to help you explore the Full-Stack Dual Track!
                 </div>
               </div>
             )}
@@ -378,8 +421,8 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
                   <span className="font-bold">
                     {result.introLeaning === 'programming' ? 'Programming Track' : 'Creative Track'}
                   </span>
-                  , but your assessment demonstrated strong aptitude for the{' '}
-                  <span className="font-bold">{matchedTrack.name}</span>. We never switch your track automatically — please chat with a facilitator before finalizing!
+                  , but your assessment revealed stronger objective aptitude for the{' '}
+                  <span className="font-bold">{matchedTrack.name}</span>. We never switch your track automatically — let's have a chat with a facilitator to review your results together!
                 </p>
               </div>
             </motion.div>
@@ -389,7 +432,7 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
           <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
-                Official Score Breakdown (Out of 8)
+                20-Question Score Breakdown (Out of {result.codeMax})
               </h3>
               <span className="text-xs font-bold text-slate-500">
                 Gap: {Math.abs(result.gap)} pts
@@ -403,12 +446,14 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
                   <Terminal className="w-3.5 h-3.5 text-[#2B5FFF]" />
                   Programming & Logic
                 </span>
-                <span className="text-[#2B5FFF] font-black">{result.codeScore} / 8</span>
+                <span className="text-[#2B5FFF] font-black">
+                  {result.codeScore} / {result.codeMax} ({result.codePercent}%)
+                </span>
               </div>
               <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${(result.codeScore / 8) * 100}%` }}
+                  animate={{ width: `${result.codePercent}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                   className="h-full bg-[#2B5FFF] rounded-full"
                 />
@@ -422,12 +467,14 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
                   <Palette className="w-3.5 h-3.5 text-[#FF9640]" />
                   Creative & Visual Design
                 </span>
-                <span className="text-[#FF9640] font-black">{result.creativeScore} / 8</span>
+                <span className="text-[#FF9640] font-black">
+                  {result.creativeScore} / {result.creativeMax} ({result.creativePercent}%)
+                </span>
               </div>
               <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${(result.creativeScore / 8) * 100}%` }}
+                  animate={{ width: `${result.creativePercent}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                   className="h-full bg-[#FF9640] rounded-full"
                 />
@@ -499,7 +546,7 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
               className="w-full py-3 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-2xl text-xs border border-slate-200 flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Retake Assessment
+              Retake 20-Question Assessment
             </button>
           </div>
         </div>
@@ -508,7 +555,7 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // SCREEN: QUIZ (Q1 to Q10)
+  // SCREEN: QUIZ (20 Shuffled Questions)
   // ──────────────────────────────────────────────────────────────────────────
   const selectedAnswer = answers[currentQ.id];
   const isMulti = currentQ.multiSelect;
@@ -559,9 +606,18 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
             transition={{ duration: 0.22, ease: 'easeOut' }}
             className="space-y-4"
           >
-            {/* Part Pill */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
-              <span>{currentQ.partLabel}</span>
+            {/* Category / Skill Badge */}
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold ${
+                currentQ.trackTarget === 'code'
+                  ? 'bg-blue-50 text-[#2B5FFF]'
+                  : currentQ.trackTarget === 'creative'
+                  ? 'bg-amber-50 text-[#FF9640]'
+                  : 'bg-purple-50 text-purple-600'
+              }`}>
+                {currentQ.trackTarget === 'code' ? <Terminal className="w-3 h-3" /> : currentQ.trackTarget === 'creative' ? <Palette className="w-3 h-3" /> : <Shuffle className="w-3 h-3" />}
+                {currentQ.category}
+              </span>
             </div>
 
             {/* Question Text */}
@@ -576,12 +632,12 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
               )}
             </div>
 
-            {/* Image (For Visual Questions Q4, Q5, Q6) */}
+            {/* Image (For Visual Questions) */}
             {currentQ.image && (
               <div className="w-full rounded-2xl overflow-hidden border border-slate-200 bg-white p-2 sm:p-3 shadow-sm flex items-center justify-center">
                 <img
                   src={currentQ.image}
-                  alt={`Question ${currentQ.id} visual guide`}
+                  alt={`Question visual`}
                   className="max-h-64 sm:max-h-72 w-auto object-contain rounded-xl"
                 />
               </div>
@@ -639,7 +695,7 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
               })}
             </div>
 
-            {/* Multi-select confirmation button for Q9 */}
+            {/* Multi-select confirmation button for Q19 */}
             {isMulti && (
               <div className="pt-2">
                 <button

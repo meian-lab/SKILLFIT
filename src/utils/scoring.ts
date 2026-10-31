@@ -7,26 +7,25 @@ export function calculateAssessment(
 ): AssessmentResult {
   let codeScore = 0;
   let creativeScore = 0;
+  const maxPossible = 13; // 9 direct reasoning/knowledge + 2 project fit + 2 frustration resilience
 
-  // Q1 - Q3 (Code reasoning, 1pt each)
-  if (answers[1] === ANSWER_KEYS[1]) codeScore += 1;
-  if (answers[2] === ANSWER_KEYS[2]) codeScore += 1;
-  if (answers[3] === ANSWER_KEYS[3]) codeScore += 1;
+  // Code objective reasoning & knowledge (Q1, 3, 5, 7, 9, 11, 13, 15, 17)
+  [1, 3, 5, 7, 9, 11, 13, 15, 17].forEach((qId) => {
+    if (answers[qId] === ANSWER_KEYS[qId]) {
+      codeScore += 1;
+    }
+  });
 
-  // Q4 - Q6 (Creative visual reasoning, 1pt each)
-  if (answers[4] === ANSWER_KEYS[4]) creativeScore += 1;
-  if (answers[5] === ANSWER_KEYS[5]) creativeScore += 1;
-  if (answers[6] === ANSWER_KEYS[6]) creativeScore += 1;
+  // Creative objective visual & design knowledge (Q2, 4, 6, 8, 10, 12, 14, 16, 18)
+  [2, 4, 6, 8, 10, 12, 14, 16, 18].forEach((qId) => {
+    if (answers[qId] === ANSWER_KEYS[qId]) {
+      creativeScore += 1;
+    }
+  });
 
-  // Q7 (Code knowledge, 1pt)
-  if (answers[7] === ANSWER_KEYS[7]) codeScore += 1;
-
-  // Q8 (Creative knowledge, 1pt)
-  if (answers[8] === ANSWER_KEYS[8]) creativeScore += 1;
-
-  // Q9 (Fit project preferences: 1pt per pick, up to 2)
-  const q9Answers = (Array.isArray(answers[9]) ? answers[9] : []) as string[];
-  for (const choice of q9Answers) {
+  // Q19 (Fit project preferences: 1pt per pick, up to 2)
+  const q19Answers = (Array.isArray(answers[19]) ? answers[19] : []) as string[];
+  for (const choice of q19Answers) {
     if (choice === 'calc_bug' || choice === 'quiz_engine') {
       codeScore += 1;
     } else if (choice === 'game_character' || choice === 'redesign_app') {
@@ -34,10 +33,10 @@ export function calculateAssessment(
     }
   }
 
-  // Q10 (Fit frustration tolerance: 2pts to selected side)
-  if (answers[10] === 'bug_hunt') {
+  // Q20 (Frustration tolerance: 2pts to selected side)
+  if (answers[20] === 'bug_hunt') {
     codeScore += 2;
-  } else if (answers[10] === 'design_tweak') {
+  } else if (answers[20] === 'design_tweak') {
     creativeScore += 2;
   }
 
@@ -52,14 +51,20 @@ export function calculateAssessment(
     recommendation = 'borderline';
   }
 
-  // Check disagreement with initial leaning
   const disagreesWithIntro =
     (introLeaning === 'programming' && recommendation === 'creative') ||
     (introLeaning === 'creative' && recommendation === 'programming');
 
+  const codePercent = Math.round((codeScore / maxPossible) * 100);
+  const creativePercent = Math.round((creativeScore / maxPossible) * 100);
+
   return {
     codeScore,
+    codeMax: maxPossible,
     creativeScore,
+    creativeMax: maxPossible,
+    codePercent,
+    creativePercent,
     gap,
     recommendation,
     introLeaning,
