@@ -1,73 +1,72 @@
-// SkillFit Service Worker — PWA support for iOS & Android
-const CACHE_NAME = 'skillfit-v1';
+// SkillFit Service Worker — Version 2.0.0
+const CACHE_NAME = 'skillfit-v2';
 
-// Core assets to pre-cache on install
-const PRECACHE_ASSETS = [
+const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
   '/logo.png',
-  '/splash_logo.png',
+  '/images/q4_buttons.png',
+  '/images/q5_blocks.png',
+  '/images/q6_screens.png'
 ];
 
-// ── Install: pre-cache core shell ──────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_URLS);
+    }).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// ── Activate: remove old caches ────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    )
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      );
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// ── Fetch: network-first for API/fonts, cache-first for assets ────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  if (request.method !== 'GET') return;
+
   const url = new URL(request.url);
 
-  // Skip non-GET and cross-origin requests (except Google Fonts)
-  if (request.method !== 'GET') return;
-  if (url.origin !== self.location.origin && !url.hostname.includes('fonts.g')) return;
-
-  // Network-first for HTML navigation (always get fresh shell)
+  // For page navigation (HTML document)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
-        .then((res) => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return res;
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
         })
         .catch(() => caches.match('/index.html'))
     );
     return;
   }
 
-  // Cache-first for static assets (JS, CSS, images, fonts)
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((res) => {
-        // Only cache valid responses
-        if (!res || res.status !== 200 || res.type === 'opaque') return res;
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        return res;
-      });
-    })
-  );
+  // Same-origin assets: cache-first with network fallback
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        });
+      })
+    );
+  }
 });
-

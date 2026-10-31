@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import {
@@ -11,8 +11,7 @@ import {
   Share2,
   RotateCcw,
   Sparkles,
-  MessageCircle,
-  ExternalLink,
+  Download,
   ChevronRight,
   Info
 } from 'lucide-react';
@@ -31,6 +30,38 @@ export default function App() {
   const [answers, setAnswers] = useState<Record<number, string | string[]>>({});
   const [direction, setDirection] = useState(1);
   const [copied, setCopied] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  async function triggerInstall() {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+    }
+  }
 
   const currentQ = questions[currentQIndex];
   const totalQuestions = questions.length; // 10
@@ -206,6 +237,17 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
             Start Track Assessment
             <ArrowRight className="w-4 h-4" />
           </motion.button>
+
+          {installPrompt && !isInstalled && (
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={triggerInstall}
+              className="w-full py-3 bg-white hover:bg-slate-50 text-slate-800 font-bold rounded-2xl text-xs border border-slate-200 shadow-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <Download className="w-4 h-4 text-[#2B5FFF]" />
+              Install SkillFit App
+            </motion.button>
+          )}
 
           <p className="text-[11px] text-slate-400">
             SkillFit places people. It never rejects them.
@@ -441,6 +483,16 @@ Checked via SkillFit by meian.lab x Community Innovation Hub`;
               <Share2 className="w-4 h-4" />
               {copied ? 'Summary Copied to Clipboard!' : 'Share / Copy Assessment Summary'}
             </button>
+
+            {installPrompt && !isInstalled && (
+              <button
+                onClick={triggerInstall}
+                className="w-full py-3 bg-[#2B5FFF] hover:bg-blue-600 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md shadow-blue-500/20"
+              >
+                <Download className="w-4 h-4" />
+                Install SkillFit App on Device
+              </button>
+            )}
 
             <button
               onClick={restartAssessment}
