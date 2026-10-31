@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 620" width="100%" height="100%">
+  <style>
+    .bg { fill: #000000; }
+    .blue-box { fill: #2B5FFF; }
+    .orange-fold { fill: #FF9640; }
+    .serif-s { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-weight: 700; fill: #FFFFFF; }
+    .title-text { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-weight: 900; fill: #FFFFFF; }
+    .sub-text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-weight: 400; fill: #FFFFFF; letter-spacing: 0.5px; }
+  </style>
+
+  <!-- Black background -->
+  <rect width="500" height="620" class="bg" />
+
+  <!-- Tilted Logo Badge Container -->
+  <g transform="rotate(-6 250 220)">
+    <g>
+      <!-- Clip Path for Rounded Badge -->
+      <defs>
+        <clipPath id="badge-clip">
+          <rect x="90" y="60" width="320" height="320" rx="70" ry="70" />
+        </clipPath>
+      </defs>
+
+      <!-- Blue Base Box -->
+      <rect x="90" y="60" width="320" height="320" rx="70" ry="70" class="blue-box" />
+
+      <!-- Orange Corner Fold at Top-Right -->
+      <path d="M 300 60 L 410 60 L 410 170 Z" class="orange-fold" clip-path="url(#badge-clip)" />
+
+      <!-- White Serif S -->
+      <text x="250" y="295" font-size="220" text-anchor="middle" class="serif-s">S</text>
+    </g>
+  </g>
+
+  <!-- Typography Below Badge -->
+  <text x="250" y="475" font-size="64" text-anchor="middle" class="title-text">Skillfit</text>
+  <text x="250" y="520" font-size="24" text-anchor="middle" class="sub-text">by meian.lab x CIH</text>
+</svg>

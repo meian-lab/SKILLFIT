@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <style>
+    .blue-box { fill: #2B5FFF; }
+    .orange-fold { fill: #FF9640; }
+    .serif-s { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-weight: 700; fill: #FFFFFF; }
+  </style>
+  <g transform="rotate(-6 250 250)">
+    <defs>
+      <clipPath id="badge-clip">
+        <rect x="60" y="60" width="380" height="380" rx="85" ry="85" />
+      </clipPath>
+    </defs>
+    <rect x="60" y="60" width="380" height="380" rx="85" ry="85" class="blue-box" />
+    <path d="M 310 60 L 440 60 L 440 190 Z" class="orange-fold" clip-path="url(#badge-clip)" />
+    <text x="250" y="340" font-size="260" text-anchor="middle" class="serif-s">S</text>
+  </g>
+</svg>

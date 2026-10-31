@@ -1,0 +1,23 @@
+module.exports = {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        brand: {
+          blue: "#2B5FFF",
+          "blue-hover": "#1F4EE5",
+          orange: "#FF9640",
+          dark: "#0F172A",
+          muted: "#64748B",
+          border: "#E2E8F0",
+          bg: "#FFFFFF"
+        }
+      },
+      fontFamily: {
+        sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"]
+      }
+    }
+  },
+  plugins: []
+};
