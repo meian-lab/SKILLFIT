@@ -1,46 +1,68 @@
-import type { Scores } from '../types';
-import { tracks } from '../data/tracks';
-import type { Track } from '../types';
+import type { AssessmentResult, TrackId } from '../types';
+import { ANSWER_KEYS } from '../data/questions';
 
-export function calculateScores(answers: Record<number, string>, questions: { id: number; options: { id: string; logicalDelta: number; creativeDelta: number; subScores: { systemicProblemSolving: number; visualSpatialIntuition: number; logicPatternRecognition: number; storytellingLayoutDesign: number } }[] }[]): Scores {
-  let logical = 0;
-  let creative = 0;
-  const subScores = { systemicProblemSolving: 0, visualSpatialIntuition: 0, logicPatternRecognition: 0, storytellingLayoutDesign: 0 };
+export function calculateAssessment(
+  answers: Record<number, string | string[]>,
+  introLeaning: string
+): AssessmentResult {
+  let codeScore = 0;
+  let creativeScore = 0;
 
-  for (const q of questions) {
-    const answerId = answers[q.id];
-    if (!answerId) continue;
-    const opt = q.options.find(o => o.id === answerId);
-    if (!opt) continue;
-    logical += opt.logicalDelta;
-    creative += opt.creativeDelta;
-    subScores.systemicProblemSolving += opt.subScores.systemicProblemSolving;
-    subScores.visualSpatialIntuition += opt.subScores.visualSpatialIntuition;
-    subScores.logicPatternRecognition += opt.subScores.logicPatternRecognition;
-    subScores.storytellingLayoutDesign += opt.subScores.storytellingLayoutDesign;
+  // Q1 - Q3 (Code reasoning, 1pt each)
+  if (answers[1] === ANSWER_KEYS[1]) codeScore += 1;
+  if (answers[2] === ANSWER_KEYS[2]) codeScore += 1;
+  if (answers[3] === ANSWER_KEYS[3]) codeScore += 1;
+
+  // Q4 - Q6 (Creative visual reasoning, 1pt each)
+  if (answers[4] === ANSWER_KEYS[4]) creativeScore += 1;
+  if (answers[5] === ANSWER_KEYS[5]) creativeScore += 1;
+  if (answers[6] === ANSWER_KEYS[6]) creativeScore += 1;
+
+  // Q7 (Code knowledge, 1pt)
+  if (answers[7] === ANSWER_KEYS[7]) codeScore += 1;
+
+  // Q8 (Creative knowledge, 1pt)
+  if (answers[8] === ANSWER_KEYS[8]) creativeScore += 1;
+
+  // Q9 (Fit project preferences: 1pt per pick, up to 2)
+  const q9Answers = (Array.isArray(answers[9]) ? answers[9] : []) as string[];
+  for (const choice of q9Answers) {
+    if (choice === 'calc_bug' || choice === 'quiz_engine') {
+      codeScore += 1;
+    } else if (choice === 'game_character' || choice === 'redesign_app') {
+      creativeScore += 1;
+    }
   }
 
-  return { logical, creative, subScores };
-}
+  // Q10 (Fit frustration tolerance: 2pts to selected side)
+  if (answers[10] === 'bug_hunt') {
+    codeScore += 2;
+  } else if (answers[10] === 'design_tweak') {
+    creativeScore += 2;
+  }
 
-export function getRecommendedTrack(scores: Scores): Track {
-  const total = scores.logical + scores.creative;
-  if (total === 0) return tracks.hybrid;
+  const gap = codeScore - creativeScore;
 
-  const creativeRatio = scores.creative / total;
-  const logicalRatio = scores.logical / total;
+  let recommendation: TrackId = 'borderline';
+  if (gap >= 3) {
+    recommendation = 'programming';
+  } else if (gap <= -3) {
+    recommendation = 'creative';
+  } else {
+    recommendation = 'borderline';
+  }
 
-  if (creativeRatio >= 0.68) return tracks.creative;
-  if (logicalRatio >= 0.68) return tracks.programming;
-  return tracks.hybrid;
-}
+  // Check disagreement with initial leaning
+  const disagreesWithIntro =
+    (introLeaning === 'programming' && recommendation === 'creative') ||
+    (introLeaning === 'creative' && recommendation === 'programming');
 
-export function getMatchPercent(scores: Scores): { creative: number; logical: number } {
-  const total = scores.logical + scores.creative;
-  if (total === 0) return { creative: 50, logical: 50 };
   return {
-    creative: Math.round((scores.creative / total) * 100),
-    logical: Math.round((scores.logical / total) * 100),
+    codeScore,
+    creativeScore,
+    gap,
+    recommendation,
+    introLeaning,
+    disagreesWithIntro,
   };
 }
-

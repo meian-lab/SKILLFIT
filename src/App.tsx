@@ -1,279 +1,612 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { questions } from './data/questions';
+import confetti from 'canvas-confetti';
+import {
+  Terminal,
+  Palette,
+  HelpCircle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Share2,
+  RotateCcw,
+  Sparkles,
+  MessageCircle,
+  ExternalLink,
+  ChevronRight,
+  Info
+} from 'lucide-react';
+
+import { questions, introOptions } from './data/questions';
 import { tracks } from './data/tracks';
-import { calculateScores, getRecommendedTrack, getMatchPercent } from './utils/scoring';
-import { ButtonDesignQuestion } from './components/ButtonDesignQuestion';
-import { LayoutDesignQuestion } from './components/LayoutDesignQuestion';
-import { PatternQuestion } from './components/PatternQuestion';
+import { calculateAssessment } from './utils/scoring';
+import type { AssessmentResult } from './types';
 
-type Screen = 'splash' | 'quiz' | 'results';
-
-const TOTAL = questions.length;
+type Screen = 'splash' | 'intro' | 'quiz' | 'results';
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('splash');
-  const [index, setIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [introLeaning, setIntroLeaning] = useState<string>('not_sure');
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, string | string[]>>({});
   const [direction, setDirection] = useState(1);
+  const [copied, setCopied] = useState(false);
 
-  const question = questions[index];
-  const progress = ((index) / TOTAL) * 100;
+  const currentQ = questions[currentQIndex];
+  const totalQuestions = questions.length; // 10
+  const progressPercent = ((currentQIndex + 1) / totalQuestions) * 100;
 
-  function handleAnswer(optionId: string) {
-    const newAnswers = { ...answers, [question.id]: optionId };
-    setAnswers(newAnswers);
-
-    // Auto-advance after brief flash
-    setTimeout(() => {
-      if (index < TOTAL - 1) {
-        setDirection(1);
-        setIndex(i => i + 1);
-      } else {
-        setScreen('results');
-      }
-    }, 300);
+  function triggerConfetti() {
+    confetti({
+      particleCount: 80,
+      spread: 70,
+      origin: { y: 0.6 },
+    });
   }
 
-  function handleBack() {
-    if (index > 0) {
-      setDirection(-1);
-      setIndex(i => i - 1);
+  function handleStart() {
+    setScreen('intro');
+  }
+
+  function handleIntroSelect(id: string) {
+    setIntroLeaning(id);
+    setTimeout(() => {
+      setScreen('quiz');
+      setCurrentQIndex(0);
+      setDirection(1);
+    }, 250);
+  }
+
+  function handleSingleChoice(optionId: string) {
+    const nextAnswers = { ...answers, [currentQ.id]: optionId };
+    setAnswers(nextAnswers);
+
+    setTimeout(() => {
+      if (currentQIndex < totalQuestions - 1) {
+        setDirection(1);
+        setCurrentQIndex(i => i + 1);
+      } else {
+        setScreen('results');
+        triggerConfetti();
+      }
+    }, 280);
+  }
+
+  function handleMultiChoiceToggle(optionId: string) {
+    const currentList = (Array.isArray(answers[currentQ.id])
+      ? (answers[currentQ.id] as string[])
+      : []) as string[];
+
+    let updatedList: string[];
+    if (currentList.includes(optionId)) {
+      updatedList = currentList.filter(id => id !== optionId);
+    } else {
+      if (currentList.length >= (currentQ.maxSelections || 2)) {
+        updatedList = [currentList[1], optionId]; // keep last and add new
+      } else {
+        updatedList = [...currentList, optionId];
+      }
+    }
+
+    setAnswers({ ...answers, [currentQ.id]: updatedList });
+  }
+
+  function handleNextMulti() {
+    const currentList = (answers[currentQ.id] as string[]) || [];
+    if (currentList.length !== (currentQ.maxSelections || 2)) return;
+
+    if (currentQIndex < totalQuestions - 1) {
+      setDirection(1);
+      setCurrentQIndex(i => i + 1);
+    } else {
+      setScreen('results');
+      triggerConfetti();
     }
   }
 
-  function restart() {
+  function handlePrev() {
+    if (currentQIndex > 0) {
+      setDirection(-1);
+      setCurrentQIndex(i => i - 1);
+    } else {
+      setScreen('intro');
+    }
+  }
+
+  function restartAssessment() {
     setAnswers({});
-    setIndex(0);
+    setCurrentQIndex(0);
     setDirection(1);
+    setIntroLeaning('not_sure');
     setScreen('splash');
   }
 
-  const scores = calculateScores(answers, questions);
-  const recommended = getRecommendedTrack(scores);
-  const match = getMatchPercent(scores);
+  const result: AssessmentResult = calculateAssessment(answers, introLeaning);
+  const matchedTrack =
+    result.recommendation === 'programming'
+      ? tracks.programming
+      : result.recommendation === 'creative'
+      ? tracks.creative
+      : tracks.hybrid;
 
-  // ── Splash ─────────────────────────────────────────────────────────────
+  function copySummary() {
+    const text = `🎯 My SkillFit Assessment Result:
+• Recommendation: ${matchedTrack.name}
+• Code Score: ${result.codeScore}/8
+• Creative Score: ${result.creativeScore}/8
+• Gap: ${Math.abs(result.gap)} points (${result.gap >= 0 ? 'Code leading' : 'Creative leading'})
+Checked via SkillFit by meian.lab x Community Innovation Hub`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // SCREEN: SPLASH
+  // ──────────────────────────────────────────────────────────────────────────
   if (screen === 'splash') {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-blue-50/30 flex flex-col items-center justify-center px-4 py-8">
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="flex flex-col items-center gap-6 max-w-sm w-full"
+          transition={{ duration: 0.4 }}
+          className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col items-center text-center space-y-6"
         >
-          <img src="/logo.png" alt="SkillFit" className="w-28 h-28 object-contain drop-shadow" />
-          <div>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">SkillFit</h1>
-            <p className="text-slate-500 mt-1 text-sm">Find your perfect tech track</p>
+          {/* Logo & Hub Branding */}
+          <div className="relative">
+            <div className="w-20 h-20 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center p-2 shadow-inner">
+              <img src="/logo.png" alt="SkillFit Logo" className="w-full h-full object-contain" />
+            </div>
+            <div className="absolute -bottom-2 -right-2 bg-[#FF9640] text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
+              v1.0
+            </div>
           </div>
-          <div className="flex flex-col gap-2 text-sm text-slate-500 bg-slate-50 rounded-2xl p-4 w-full text-left">
-            <div className="flex items-center gap-2"><span>✅</span><span>11 quick questions</span></div>
-            <div className="flex items-center gap-2"><span>🎯</span><span>Personalised track match</span></div>
-            <div className="flex items-center gap-2"><span>⚡</span><span>Takes about 2 minutes</span></div>
+
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-[#2B5FFF] text-xs font-bold tracking-wide uppercase">
+              <Sparkles className="w-3.5 h-3.5" />
+              Community Innovation Hub
+            </div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+              SkillFit Assessment
+            </h1>
+            <p className="text-sm text-slate-500 font-medium">
+              Programming vs Creative Track Placement
+            </p>
           </div>
+
+          {/* Quick Info Box */}
+          <div className="w-full bg-slate-50/80 rounded-2xl p-4 text-left border border-slate-100 space-y-2.5 text-xs text-slate-600">
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-blue-100 text-[#2B5FFF] font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
+              <div>
+                <span className="font-bold text-slate-800">10 Focused Questions (~5 mins):</span> Mix of algorithmic reasoning, visual perception tests, and project fit.
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-amber-100 text-[#FF9640] font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
+              <div>
+                <span className="font-bold text-slate-800">8 Points Each:</span> Code and Creative tracks are scored independently out of 8 for objective, balanced placement.
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-600 font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
+              <div>
+                <span className="font-bold text-slate-800">No Guesswork:</span> If your scores are close, we guide you to a 1-on-1 facilitator chat to make the best decision.
+              </div>
+            </div>
+          </div>
+
           <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setScreen('quiz')}
-            className="w-full py-4 bg-[#2B5FFF] text-white font-bold text-base rounded-2xl shadow-lg shadow-blue-300/40"
+            whileTap={{ scale: 0.98 }}
+            onClick={handleStart}
+            className="w-full py-4 bg-[#2B5FFF] hover:bg-blue-600 text-white font-bold rounded-2xl text-base shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
-            Start Assessment →
+            Start Track Assessment
+            <ArrowRight className="w-4 h-4" />
           </motion.button>
-          <p className="text-xs text-slate-400">by meian.lab × Community Innovation Hub</p>
+
+          <p className="text-[11px] text-slate-400">
+            SkillFit places people. It never rejects them.
+          </p>
         </motion.div>
       </div>
     );
   }
 
-  // ── Results ────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // SCREEN: INTRO (Unscored Leaning)
+  // ──────────────────────────────────────────────────────────────────────────
+  if (screen === 'intro') {
+    return (
+      <div className="min-h-screen bg-slate-50/60 flex flex-col items-center justify-center px-4 py-6">
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full space-y-6"
+        >
+          {/* Header */}
+          <div className="text-center space-y-1.5">
+            <span className="text-xs font-black uppercase tracking-widest text-[#2B5FFF]">
+              Step 1 of 11 · Initial Leaning
+            </span>
+            <h2 className="text-2xl font-black text-slate-900">
+              Which track are you leaning toward?
+            </h2>
+            <p className="text-xs text-slate-500">
+              This does not affect your score. It helps us advise you if your assessment reveals a hidden strength!
+            </p>
+          </div>
+
+          {/* Options */}
+          <div className="space-y-3">
+            {introOptions.map(opt => {
+              const isSelected = introLeaning === opt.id;
+              return (
+                <motion.button
+                  key={opt.id}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => handleIntroSelect(opt.id)}
+                  className={`w-full p-4 rounded-2xl border-2 text-left transition-all flex items-start gap-3.5 bg-white cursor-pointer ${
+                    isSelected
+                      ? 'border-[#2B5FFF] shadow-md shadow-blue-100 ring-2 ring-blue-500/10'
+                      : 'border-slate-200 hover:border-slate-300 shadow-sm'
+                  }`}
+                >
+                  <div className={`p-2.5 rounded-xl shrink-0 ${
+                    opt.id === 'programming'
+                      ? 'bg-blue-50 text-[#2B5FFF]'
+                      : opt.id === 'creative'
+                      ? 'bg-amber-50 text-[#FF9640]'
+                      : 'bg-purple-50 text-purple-600'
+                  }`}>
+                    {opt.id === 'programming' ? <Terminal className="w-5 h-5" /> : opt.id === 'creative' ? <Palette className="w-5 h-5" /> : <HelpCircle className="w-5 h-5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-900 text-sm leading-snug">{opt.label}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{opt.subtitle}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 self-center" />
+                </motion.button>
+              );
+            })}
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // SCREEN: RESULTS
+  // ──────────────────────────────────────────────────────────────────────────
   if (screen === 'results') {
-    const track = recommended;
-    const allTracks = Object.values(tracks);
+    const isBorderline = result.recommendation === 'borderline';
 
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
-        <div className="flex-1 overflow-y-auto px-4 py-6 max-w-lg mx-auto w-full space-y-4">
-          {/* Header */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-1">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Your Match</p>
-            <div className="text-5xl">{track.emoji}</div>
-            <h2 className="text-2xl font-black text-slate-900">{track.name}</h2>
-            <p className="text-slate-500 text-sm">{track.tagline}</p>
-          </motion.div>
-
-          {/* Score bars */}
+      <div className="min-h-screen bg-slate-50 flex flex-col py-6 px-4">
+        <div className="max-w-lg mx-auto w-full space-y-5">
+          {/* Top Recommendation Hero */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-            className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`rounded-3xl p-6 sm:p-7 text-center border relative overflow-hidden bg-white shadow-sm ${
+              isBorderline
+                ? 'border-purple-200 shadow-purple-100'
+                : result.recommendation === 'programming'
+                ? 'border-blue-200 shadow-blue-100'
+                : 'border-amber-200 shadow-amber-100'
+            }`}
           >
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Score Breakdown</p>
-            {[
-              { label: '🎨 Creative', val: match.creative, color: 'bg-[#FF9640]' },
-              { label: '💻 Logical', val: match.logical, color: 'bg-[#2B5FFF]' },
-            ].map(bar => (
-              <div key={bar.label} className="space-y-1">
-                <div className="flex justify-between text-sm font-semibold text-slate-700">
-                  <span>{bar.label}</span><span>{bar.val}%</span>
-                </div>
-                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${bar.val}%` }}
-                    transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
-                    className={`h-full ${bar.color} rounded-full`}
-                  />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider mb-3 bg-slate-100 text-slate-700">
+              {matchedTrack.badge}
+            </div>
+
+            <div className="text-5xl mb-2">{matchedTrack.emoji}</div>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              {matchedTrack.name}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-sm mx-auto leading-relaxed">
+              {matchedTrack.tagline}
+            </p>
+
+            {/* If borderline, show specific guidance message from PDF */}
+            {isBorderline && (
+              <div className="mt-4 p-3.5 bg-purple-50 border border-purple-100 rounded-2xl text-left text-xs text-purple-900 flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Borderline / Dual-Talent Match:</span> Your Code and Creative scores are within {Math.abs(result.gap)} point(s) of each other. Rather than guessing, SkillFit recommends chatting with a facilitator to help you pick or explore the Full-Stack Dual Track!
                 </div>
               </div>
-            ))}
+            )}
           </motion.div>
 
-          {/* Career roles */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-            className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100"
-          >
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Career Paths</p>
-            <div className="flex flex-wrap gap-2">
-              {track.roles.map(role => (
-                <span key={role} className="px-3 py-1.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700">
-                  {role}
+          {/* Gentle Note if Disagrees with Intro */}
+          {result.disagreesWithIntro && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3"
+            >
+              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-950">Notice on Your Initial Choice:</p>
+                <p className="mt-0.5 leading-relaxed">
+                  You initially indicated you were leaning toward the{' '}
+                  <span className="font-bold">
+                    {result.introLeaning === 'programming' ? 'Programming Track' : 'Creative Track'}
+                  </span>
+                  , but your assessment demonstrated strong aptitude for the{' '}
+                  <span className="font-bold">{matchedTrack.name}</span>. We never switch your track automatically — please chat with a facilitator before finalizing!
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Score Breakdown Cards */}
+          <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                Official Score Breakdown (Out of 8)
+              </h3>
+              <span className="text-xs font-bold text-slate-500">
+                Gap: {Math.abs(result.gap)} pts
+              </span>
+            </div>
+
+            {/* Code Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-bold text-slate-800">
+                <span className="flex items-center gap-1.5">
+                  <Terminal className="w-3.5 h-3.5 text-[#2B5FFF]" />
+                  Programming & Logic
                 </span>
-              ))}
+                <span className="text-[#2B5FFF] font-black">{result.codeScore} / 8</span>
+              </div>
+              <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(result.codeScore / 8) * 100}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                  className="h-full bg-[#2B5FFF] rounded-full"
+                />
+              </div>
             </div>
-          </motion.div>
 
-          {/* All tracks */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100"
-          >
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">All Tracks at CIH</p>
-            <div className="space-y-2">
-              {allTracks.map(t => (
-                <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl ${t.id === track.id ? 'bg-blue-50 border border-[#2B5FFF]/20' : 'bg-slate-50'}`}>
-                  <span className="text-xl">{t.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-900 truncate">{t.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{t.tagline}</p>
+            {/* Creative Bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs font-bold text-slate-800">
+                <span className="flex items-center gap-1.5">
+                  <Palette className="w-3.5 h-3.5 text-[#FF9640]" />
+                  Creative & Visual Design
+                </span>
+                <span className="text-[#FF9640] font-black">{result.creativeScore} / 8</span>
+              </div>
+              <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(result.creativeScore / 8) * 100}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                  className="h-full bg-[#FF9640] rounded-full"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Why You Fit & What You'll Learn */}
+          <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-1">
+                Why You Fit This Track
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {matchedTrack.whyYouFit}
+              </p>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
+                Core Modules at Community Innovation Hub
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {matchedTrack.modules.map((mod: string) => (
+                  <div key={mod} className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 text-slate-700 text-xs font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span className="truncate">{mod}</span>
                   </div>
-                  {t.id === track.id && <span className="text-xs font-bold text-[#2B5FFF] shrink-0">Your Match</span>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </motion.div>
 
-          {/* Retake */}
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={restart}
-            className="w-full py-4 bg-slate-100 text-slate-700 font-bold rounded-2xl text-sm"
-          >
-            ↩ Retake Assessment
-          </motion.button>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
+                Career Opportunities
+              </h4>
+              <div className="flex flex-wrap gap-1.5">
+                {matchedTrack.roles.map((role: string) => (
+                  <span key={role} className="px-2.5 py-1 rounded-lg bg-blue-50 text-[#2B5FFF] text-[11px] font-bold">
+                    {role}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="space-y-2.5 pt-2">
+            <button
+              onClick={copySummary}
+              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
+            >
+              <Share2 className="w-4 h-4" />
+              {copied ? 'Summary Copied to Clipboard!' : 'Share / Copy Assessment Summary'}
+            </button>
+
+            <button
+              onClick={restartAssessment}
+              className="w-full py-3 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-2xl text-xs border border-slate-200 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Retake Assessment
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── Quiz ───────────────────────────────────────────────────────────────
-  const selected = answers[question.id] ?? null;
+  // ──────────────────────────────────────────────────────────────────────────
+  // SCREEN: QUIZ (Q1 to Q10)
+  // ──────────────────────────────────────────────────────────────────────────
+  const selectedAnswer = answers[currentQ.id];
+  const isMulti = currentQ.multiSelect;
+  const multiAnswers = (Array.isArray(selectedAnswer) ? selectedAnswer : []) as string[];
+  const multiIsFull = multiAnswers.length === (currentQ.maxSelections || 2);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Progress bar + back */}
-      <div className="px-4 pt-safe pt-4 pb-2 flex items-center gap-3">
-        <button
-          onClick={handleBack}
-          disabled={index === 0}
-          className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-500 disabled:opacity-20 hover:bg-slate-100 transition-colors shrink-0"
-        >
-          ←
-        </button>
-        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-[#2B5FFF] rounded-full"
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.4 }}
-          />
-        </div>
-        <span className="text-xs font-bold text-slate-400 shrink-0 w-10 text-right">{index + 1}/{TOTAL}</span>
-      </div>
+    <div className="min-h-screen bg-slate-50/50 flex flex-col">
+      {/* Top Navigation & Progress Bar */}
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-100 px-4 py-3">
+        <div className="max-w-lg mx-auto w-full flex items-center justify-between gap-3">
+          <button
+            onClick={handlePrev}
+            className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
 
-      {/* Question */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Progress bar */}
+          <div className="flex-1 flex flex-col items-center">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+              Question {currentQIndex + 1} of {totalQuestions}
+            </span>
+            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mt-1 max-w-[200px]">
+              <motion.div
+                className="h-full bg-[#2B5FFF] rounded-full"
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          </div>
+
+          <span className="text-xs font-black text-slate-400 w-8 text-right">
+            {Math.round(progressPercent)}%
+          </span>
+        </div>
+      </header>
+
+      {/* Main Question Container */}
+      <main className="flex-1 flex flex-col justify-center px-4 py-6 max-w-lg mx-auto w-full">
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
-            key={question.id}
+            key={currentQ.id}
             custom={direction}
-            initial={{ x: direction * 60, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: direction * -60, opacity: 0 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="flex-1 flex flex-col px-4 pt-6 pb-4 gap-6 max-w-lg mx-auto w-full"
+            initial={{ opacity: 0, x: direction * 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: direction * -40 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="space-y-4"
           >
-            {/* Question header */}
-            <div className="space-y-1">
-              <h2 className="text-2xl font-black text-slate-900 leading-tight">{question.title}</h2>
-              {question.subtitle && (
-                <p className="text-slate-400 text-sm">{question.subtitle}</p>
+            {/* Part Pill */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
+              <span>{currentQ.partLabel}</span>
+            </div>
+
+            {/* Question Text */}
+            <div className="space-y-1.5">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 leading-snug">
+                {currentQ.title}
+              </h2>
+              {currentQ.subtitle && (
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                  {currentQ.subtitle}
+                </p>
               )}
             </div>
+
+            {/* Image (For Visual Questions Q4, Q5, Q6) */}
+            {currentQ.image && (
+              <div className="w-full rounded-2xl overflow-hidden border border-slate-200 bg-white p-2 sm:p-3 shadow-sm flex items-center justify-center">
+                <img
+                  src={currentQ.image}
+                  alt={`Question ${currentQ.id} visual guide`}
+                  className="max-h-64 sm:max-h-72 w-auto object-contain rounded-xl"
+                />
+              </div>
+            )}
 
             {/* Options */}
-            <div className="flex-1">
-              {question.type === 'choice' && (
-                <div className="flex flex-col gap-3">
-                  {question.options.map(opt => (
-                    <motion.button
-                      key={opt.id}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => handleAnswer(opt.id)}
-                      className={`flex items-center gap-4 w-full p-4 rounded-2xl border-2 text-left transition-all duration-150
-                        ${selected === opt.id
-                          ? 'border-[#2B5FFF] bg-blue-50 shadow-md shadow-blue-200/50'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                    >
-                      <span className="text-2xl shrink-0">{opt.icon}</span>
-                      <span className="font-semibold text-slate-800 text-sm leading-snug">{opt.label}</span>
-                      {selected === opt.id && (
-                        <div className="ml-auto w-6 h-6 bg-[#2B5FFF] rounded-full flex items-center justify-center shrink-0">
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
+            <div className="space-y-2.5 pt-1">
+              {currentQ.options.map((opt, idx) => {
+                const optLetter = String.fromCharCode(65 + idx); // A, B, C, D
+                const isSelected = isMulti
+                  ? multiAnswers.includes(opt.id)
+                  : selectedAnswer === opt.id;
+
+                return (
+                  <motion.button
+                    key={opt.id}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      if (isMulti) {
+                        handleMultiChoiceToggle(opt.id);
+                      } else {
+                        handleSingleChoice(opt.id);
+                      }
+                    }}
+                    className={`w-full p-3.5 sm:p-4 rounded-2xl border-2 text-left transition-all flex items-start gap-3 bg-white cursor-pointer ${
+                      isSelected
+                        ? 'border-[#2B5FFF] bg-blue-50/50 shadow-md shadow-blue-100 ring-2 ring-blue-500/10'
+                        : 'border-slate-200 hover:border-slate-300 shadow-sm'
+                    }`}
+                  >
+                    <span className={`w-7 h-7 rounded-xl font-black text-xs flex items-center justify-center shrink-0 ${
+                      isSelected
+                        ? 'bg-[#2B5FFF] text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {optLetter}
+                    </span>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                        {opt.label}
+                      </p>
+                      {opt.description && (
+                        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                          {opt.description}
+                        </p>
                       )}
-                    </motion.button>
-                  ))}
-                </div>
-              )}
+                    </div>
 
-              {question.type === 'image-buttons' && (
-                <ButtonDesignQuestion
-                  selected={selected}
-                  onSelect={handleAnswer}
-                />
-              )}
-
-              {question.type === 'image-layouts' && (
-                <LayoutDesignQuestion
-                  selected={selected}
-                  onSelect={handleAnswer}
-                />
-              )}
-
-              {question.type === 'image-patterns' && (
-                <PatternQuestion
-                  selected={selected}
-                  onSelect={handleAnswer}
-                />
-              )}
+                    {isSelected && (
+                      <CheckCircle2 className="w-5 h-5 text-[#2B5FFF] shrink-0 self-center" />
+                    )}
+                  </motion.button>
+                );
+              })}
             </div>
+
+            {/* Multi-select confirmation button for Q9 */}
+            {isMulti && (
+              <div className="pt-2">
+                <button
+                  disabled={!multiIsFull}
+                  onClick={handleNextMulti}
+                  className={`w-full py-3.5 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    multiIsFull
+                      ? 'bg-[#2B5FFF] text-white shadow-lg shadow-blue-500/25'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  Confirm 2 Choices & Next ({multiAnswers.length}/2)
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </motion.div>
         </AnimatePresence>
-      </div>
+      </main>
     </div>
   );
 }
-

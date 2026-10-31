@@ -1,41 +1,53 @@
-export interface SubScores {
-  systemicProblemSolving: number;
-  visualSpatialIntuition: number;
-  logicPatternRecognition: number;
-  storytellingLayoutDesign: number;
-}
+export type TrackId = 'programming' | 'creative' | 'borderline';
 
-export interface Option {
+export interface IntroOption {
   id: string;
   label: string;
-  icon: string; // emoji or lucide icon name
-  logicalDelta: number;
-  creativeDelta: number;
-  subScores: SubScores;
-  workStyle: string;
+  subtitle: string;
+  iconName: string;
 }
 
-export interface Question {
+export interface QuestionOption {
+  id: string;
+  label: string;
+  description?: string;
+  trackTarget?: 'code' | 'creative';
+}
+
+export interface BaseQuestion {
   id: number;
-  title: string;      // short — shown as heading
-  subtitle?: string;  // optional one-liner context
-  type: 'choice' | 'image-buttons' | 'image-layouts' | 'image-patterns';
-  options: Option[];
+  part: 'A' | 'B' | 'C' | 'D';
+  partLabel: string;
+  title: string;
+  subtitle?: string;
+  image?: string;
+  testsSkill: string;
+  multiSelect?: boolean;
+  maxSelections?: number;
+  options: QuestionOption[];
 }
 
 export interface Track {
-  id: 'creative' | 'programming' | 'preteen' | 'hybrid';
+  id: string;
   name: string;
   tagline: string;
+  badge: string;
   emoji: string;
-  color: string;       // hex
-  bgColor: string;     // tailwind class
+  accentColor: string;
+  badgeBg: string;
+  badgeText: string;
+  description: string;
   roles: string[];
   modules: string[];
+  keyTools: string[];
+  whyYouFit: string;
 }
 
-export interface Scores {
-  logical: number;
-  creative: number;
-  subScores: SubScores;
+export interface AssessmentResult {
+  codeScore: number;       // max 8
+  creativeScore: number;   // max 8
+  gap: number;
+  recommendation: TrackId;
+  introLeaning: string;
+  disagreesWithIntro: boolean;
 }
